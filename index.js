@@ -1,7 +1,5 @@
-// CONFIG: Your bot server URL to receive webhook updates
-const BOT_UPDATE_FORWARD_URL = 'https://yourdomain.com/my-bot-handler'; // change this
-
-const TELEGRAM_API_BASE = 'https://api.telegram.org';
+const BOT_UPDATE_FORWARD_URL = "https://yourdomain.com/my-bot-handler";
+const TELEGRAM_API_BASE = "https://api.telegram.org";
 
 const DOC_HTML = `<!DOCTYPE html>
 <html>
@@ -84,25 +82,23 @@ fetch('https://{YOUR_WORKER_URL}/bot{YOUR_BOT_TOKEN}/sendMessage', {
 
 async function handleRequest(request) {
   const url = new URL(request.url);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-
-  // Serve docs
-  if (url.pathname === '/' || pathParts.length === 0) {
+  const pathParts = url.pathname.split("/").filter(Boolean);
+  
+  if (url.pathname === "/" || pathParts.length === 0) {
     return new Response(DOC_HTML, {
       headers: {
-        'Content-Type': 'text/html;charset=UTF-8',
-        'Cache-Control': 'public, max-age=3600',
-      },
+        "Content-Type": "text/html;charset=UTF-8",
+        "Cache-Control": "public, max-age=3600"
+      }
     });
   }
-
-  // Webhook redirection: POST to /botRedirect<TOKEN>
-  if (pathParts.length === 1 && pathParts[0].startsWith('botRedirect') && request.method === 'POST') {
+  
+  if (pathParts.length === 1 && pathParts[0].startsWith("botRedirect") && request.method === "POST") {
     try {
       const forwardReq = new Request(BOT_UPDATE_FORWARD_URL, {
-        method: 'POST',
+        method: "POST",
         headers: request.headers,
-        body: request.body,
+        body: request.body
       });
       const response = await fetch(forwardReq);
       return new Response(response.body, response);
@@ -110,36 +106,38 @@ async function handleRequest(request) {
       return new Response(`Failed to forward webhook: ${err.message}`, { status: 500 });
     }
   }
-
-  // Proxy to Telegram API
-  const isFileReq = pathParts[0] === 'file';
-  const isBotReq = pathParts[0].startsWith('bot');
-  if ((!isFileReq && !isBotReq) || (isFileReq && (!pathParts[1] || !pathParts[1].startsWith('bot')))) {
-    return new Response('Invalid request format', { status: 400 });
+  
+  const isFileReq = pathParts[0] === "file";
+  const isBotReq = pathParts[0].startsWith("bot");
+  
+  if (!isFileReq && !isBotReq || isFileReq && (!pathParts[1] || !pathParts[1].startsWith("bot"))) {
+    return new Response("Invalid request format", { status: 400 });
   }
-
+  
   const telegramUrl = `${TELEGRAM_API_BASE}${url.pathname}${url.search}`;
   const headers = new Headers(request.headers);
-  const contentType = headers.get('Content-Type');
-  if (contentType && contentType.startsWith('application/json') && !contentType.includes('charset')) {
-    headers.set('Content-Type', 'application/json; charset=UTF-8');
+  const contentType = headers.get("Content-Type");
+  
+  if (contentType && contentType.startsWith("application/json") && !contentType.includes("charset")) {
+    headers.set("Content-Type", "application/json; charset=UTF-8");
   }
-
+  
   const init = {
     method: request.method,
     headers,
-    redirect: 'follow',
-    body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+    redirect: "follow",
+    body: request.method !== "GET" && request.method !== "HEAD" ? request.body : void 0
   };
-
+  
   try {
     const tgRes = await fetch(telegramUrl, init);
     const res = new Response(tgRes.body, tgRes);
-    const reqAllowHeaders = request.headers.get('Access-Control-Request-Headers');
-    const allowHeaders = reqAllowHeaders || 'Content-Type';
-    res.headers.set('Access-Control-Allow-Origin', '*');
-    res.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
-    res.headers.set('Access-Control-Allow-Headers', allowHeaders);
+    const reqAllowHeaders = request.headers.get("Access-Control-Request-Headers");
+    const allowHeaders = reqAllowHeaders || "Content-Type";
+    
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    res.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+    res.headers.set("Access-Control-Allow-Headers", allowHeaders);
     return res;
   } catch (err) {
     return new Response(`Error proxying request: ${err.message}`, { status: 500 });
@@ -147,27 +145,28 @@ async function handleRequest(request) {
 }
 
 function handleOptions(request) {
-  const reqAllowHeaders = request.headers.get('Access-Control-Request-Headers');
-  const allowHeaders = reqAllowHeaders || 'Content-Type';
-
+  const reqAllowHeaders = request.headers.get("Access-Control-Request-Headers");
+  const allowHeaders = reqAllowHeaders || "Content-Type";
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD',
-    'Access-Control-Allow-Headers': allowHeaders,
-    'Access-Control-Max-Age': '86400',
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+    "Access-Control-Allow-Headers": allowHeaders,
+    "Access-Control-Max-Age": "86400"
   };
-
+  
   return new Response(null, {
     status: 204,
-    headers: corsHeaders,
+    headers: corsHeaders
   });
 }
 
-addEventListener('fetch', event => {
-  const request = event.request;
-  if (request.method === 'OPTIONS') {
-    event.respondWith(handleOptions(request));
-  } else {
-    event.respondWith(handleRequest(request));
+// ⭐ 核心修改点：使用 ES Modules 导出，替代旧的 addEventListener
+export default {
+  async fetch(request, env, ctx) {
+    if (request.method === "OPTIONS") {
+      return handleOptions(request);
+    } else {
+      return await handleRequest(request);
+    }
   }
-});
+};
